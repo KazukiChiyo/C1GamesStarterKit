@@ -27,13 +27,11 @@ class AlgoStrategy(gamelib.AlgoCore):
         super().__init__()
         seed = random.randrange(maxsize)
         random.seed(seed)
-        gamelib.debug_write('Random seed: {}'.format(seed))
 
     def on_game_start(self, config):
         """
         Read in config and perform any initial setup here
         """
-        gamelib.debug_write('Configuring your custom algo strategy...')
         self.config = config
         global FILTER, ENCRYPTOR, DESTRUCTOR, PING, EMP, SCRAMBLER
         FILTER = config["unitInformation"][0]["shorthand"]
@@ -60,7 +58,7 @@ class AlgoStrategy(gamelib.AlgoCore):
         self.Breach_Coef = 20
         self.Score = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.Score_Forget = 0.8
-
+        self.turn_string = ""
 
     def on_turn(self, turn_state):
         """
@@ -70,11 +68,20 @@ class AlgoStrategy(gamelib.AlgoCore):
         unit deployments, and transmitting your intended deployments to the
         game engine.
         """
+        if self.turn_string == "":
+            game_state = gamelib.GameState(self.config, turn_state)
+            game_state.suppress_warnings(True)  #Comment or remove this line to enable warnings.
+            self.starter_strategy(game_state)
+            game_state.submit_turn()
+            return
 
-        state = json.loads(turn_string)
+        game_state = gamelib.GameState(self.config, turn_state)
+        game_state.suppress_warnings(True)  #Comment or remove this line to enable warnings.
+        state = json.loads(self.turn_string)
+        
+
         events = state["events"]
 
-        gamelib.debug_write(events)
         for attack in events["attack"]:
             if attack[6] == 2 and attack[3] == 5:  # enemy Scrambler
                 ID = attack[5]
@@ -93,15 +100,15 @@ class AlgoStrategy(gamelib.AlgoCore):
             if attack[3] == 3 or attack[3] ==4: # PING or EMP
                 if attack[6] == 1:   # MINE
                     ID = attack[5]
-                if ID not in self.UnitDict.keys():
-                    for spawn in events["spawn"]:
-                        if spawn[2] == ID:
-                            self.UnitDict[ID] = [0,0,0]
-                            self.UnitDict[ID][0] = spawn[0]
-                            self.UnitDict[ID][1] = spawn[1]
-                            self.UnitDict[ID][2] = spawn[3]
-                        break
-            self.Damage[self.UnitDict[ID][0]]+=attack[2]   #add the damage done into damage list
+                    if ID not in self.UnitDict.keys():
+                        for spawn in events["spawn"]:
+                            if spawn[2] == ID:
+                                self.UnitDict[ID] = [0,0,0]
+                                self.UnitDict[ID][0] = spawn[0]
+                                self.UnitDict[ID][1] = spawn[1]
+                                self.UnitDict[ID][2] = spawn[3]
+                            break
+                    self.Damage[self.UnitDict[ID][0]]+=attack[2]   #add the damage done into damage list
 
         for breach in events["breach"]:
             if breach[4] == 1: #I breached!!
@@ -119,13 +126,9 @@ class AlgoStrategy(gamelib.AlgoCore):
         gamelib.debug_write(self.UnitDict)
 
         for i in range(28):
-            self.Score[i] = self.Score[i]*self.Score_forget
+            self.Score[i] = self.Score[i]*self.Score_Forget
             self.Score[i] += self.Damage[i] + self.Breach[i]*self.Breach_Coef
 
-
-
-        game_state = gamelib.GameState(self.config, turn_state)
-        game_state.suppress_warnings(True)  #Comment or remove this line to enable warnings.
 
         self.breached_cur_turn = []
         self.damaged_cur_turn = []
@@ -305,35 +308,8 @@ class AlgoStrategy(gamelib.AlgoCore):
         Full doc on format of a game frame at: https://docs.c1games.com/json-docs.html
         """
         # Let's record at what position we get scored on
-
-        state = json.loads(turn_string)
-        events = state["events"]
-        breaches = events["breach"]
-        damages = events["damage"]
-
-        for breach in breaches:
-            location = breach[0]
-            amount = breach[1]
-            unit_owner_self = True if breach[4] == 1 else False
-            # When parsing the frame data directly,
-            # 1 is integer for yourself, 2 is opponent (StarterKit code uses 0, 1 as player_index instead)
-            if not unit_owner_self:
-                gamelib.debug_write("Got scored on at: {}".format(location))
-                self.breached_cur_turn.append(location.append(amount))
-                gamelib.debug_write("Location this turn: {}".format(self.breached_cur_turn))
-
-        for damage in damages:
-            location = damage[0]
-            id = damage[2]
-            amount = damage[1]
-            unit_owner_self = True if damage[4] == 1 else False
-            unit_destructor = True if id == 2 else False
-            # When parsing the frame data directly,
-            # 1 is integer for yourself, 2 is opponent (StarterKit code uses 0, 1 as player_index instead)
-            if unit_owner_self and unit_destructor:
-                gamelib.debug_write("Got damaged on at: {}".format(location))
-                self.damaged_cur_turn.append(location.append(amount/35.))
-                gamelib.debug_write("Location this turn: {}".format(self.damaged_cur_turn))
+        self.turn_string = turn_string
+        
 
 
 if __name__ == "__main__":
