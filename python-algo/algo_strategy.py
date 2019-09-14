@@ -59,7 +59,7 @@ class AlgoStrategy(gamelib.AlgoCore):
         self.Breach = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.Breach_Coef = 20
         self.Score = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        self.Score_Forget =0.8
+        self.Score_Forget = 0.8
 
 
     def on_turn(self, turn_state):
@@ -132,11 +132,9 @@ class AlgoStrategy(gamelib.AlgoCore):
         self.starter_strategy(game_state)
 
         Strategy = AttackStrategy()
-        Strategy.spawn_attackers(game_state, self.Scrambler_at, self.Score, risk_level)
+        self.defense_map, self.defense_score = update_defense_map(self.damaged_cur_turn, self.breached_cur_turn)
+        Strategy.spawn_attackers(game_state, self.Scrambler_at, self.Score, self.defense_score)
 
-
-        self.defense_map, self.defense_score = update_defense_map(
-            self.damaged_cur_turn, self.breached_cur_turn)
 
         game_state.submit_turn()
 
