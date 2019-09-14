@@ -41,8 +41,14 @@ class AlgoStrategy(gamelib.AlgoCore):
         SCRAMBLER = config["unitInformation"][5]["shorthand"]
         # This is a good place to do initial setup
         self.scored_on_locations = []
+        UnitDict = dict()  # key is ID, [0] is spawned at, [1] is unit type, [2] is owner
 
-    
+        Scrambler_at = []
+        Damage = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        Breach = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        Breach_Coef = 20
+        Score = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        Score_Forget =0.8
         
 
     def on_turn(self, turn_state):
@@ -57,12 +63,7 @@ class AlgoStrategy(gamelib.AlgoCore):
         state = json.loads(turn_string)
         events = state["events"]
 
-        UnitDict = dict()#key is ID, [0] is spawned at, [1] is unit type, [2] is owner
-
-        Scrambler_at = []
-        Damage = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        Breach = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-
+        gamelib.debug_write(events)
         for attack in events["attack"]:
             if attack[6] == 2 and attack[3] == 5:  # enemy Scrambler
                 ID = attack[5]
@@ -104,16 +105,16 @@ class AlgoStrategy(gamelib.AlgoCore):
                         break
                 Breach[UnitDict[ID][0]]+=1 # add 1 breach to the starting point
 
+        gamelib.debug_write(UnitDict)
 
-
+        for i in range(28):
+            Score[i] = Score[i]*Score_forget
+            Score[i] += Damage[i] + Breach[i]*Breach_Coef
 
 
 
         game_state = gamelib.GameState(self.config, turn_state)
-        gamelib.debug_write('Performing turn {} of your custom algo strategy'.format(game_state.turn_number))
         game_state.suppress_warnings(True)  #Comment or remove this line to enable warnings.
-
-        self.starter_strategy(game_state)
 
         game_state.submit_turn()
 
