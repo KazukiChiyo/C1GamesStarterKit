@@ -4,7 +4,9 @@ import math
 import warnings
 from sys import maxsize
 import json
+
 from defense import create_defense_map, update_defense_map
+from attack import AttackStrategy
 
 
 """
@@ -41,11 +43,23 @@ class AlgoStrategy(gamelib.AlgoCore):
         EMP = config["unitInformation"][4]["shorthand"]
         SCRAMBLER = config["unitInformation"][5]["shorthand"]
         # This is a good place to do initial setup
+
         # self.scored_on_locations = []
         self.breached_cur_turn = []
         self.damaged_cur_turn = []
         self.defense_map = create_defense_map()
         self.defense_score = 0.0
+
+
+        self.scored_on_locations = []
+        self.UnitDict = dict()  # key is ID, [0] is spawned at, [1] is unit type, [2] is owner
+
+        self.Scrambler_at = []
+        self.Damage = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.Breach = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.Breach_Coef = 20
+        self.Score = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.Score_Forget =0.8
 
 
     def on_turn(self, turn_state):
@@ -56,12 +70,70 @@ class AlgoStrategy(gamelib.AlgoCore):
         unit deployments, and transmitting your intended deployments to the
         game engine.
         """
+
+        state = json.loads(turn_string)
+        events = state["events"]
+
+        gamelib.debug_write(events)
+        for attack in events["attack"]:
+            if attack[6] == 2 and attack[3] == 5:  # enemy Scrambler
+                ID = attack[5]
+                if ID not in self.UnitDict.keys():
+                    for spawn in events["spawn"]:
+                        if spawn[2] == ID:
+                            self.UnitDict[ID] = [0,0,0]
+                            self.UnitDict[ID][0] = spawn[0]
+                            self.UnitDict[ID][1] = spawn[1]
+                            self.UnitDict[ID][2] = spawn[3]
+                        break
+                if self.UnitDict[ID][0] == 3 or self.UnitDict[ID][0] == 4:
+                    self.Scrambler_at.append(attack[0])
+
+
+            if attack[3] == 3 or attack[3] ==4: # PING or EMP
+                if attack[6] == 1:   # MINE
+                    ID = attack[5]
+                if ID not in self.UnitDict.keys():
+                    for spawn in events["spawn"]:
+                        if spawn[2] == ID:
+                            self.UnitDict[ID] = [0,0,0]
+                            self.UnitDict[ID][0] = spawn[0]
+                            self.UnitDict[ID][1] = spawn[1]
+                            self.UnitDict[ID][2] = spawn[3]
+                        break
+            self.Damage[self.UnitDict[ID][0]]+=attack[2]   #add the damage done into damage list
+
+        for breach in events["breach"]:
+            if breach[4] == 1: #I breached!!
+                ID = breach[3]
+                if ID not in self.UnitDict.keys():
+                    for spawn in events["spawn"]:
+                        if spawn[2] == ID:
+                            self.UnitDict[ID] = [0,0,0]
+                            self.UnitDict[ID][0] = spawn[0]
+                            self.UnitDict[ID][1] = spawn[1]
+                            self.UnitDict[ID][2] = spawn[3]
+                        break
+                self.Breach[self.UnitDict[ID][0]]+=1 # add 1 breach to the starting point
+
+        gamelib.debug_write(self.UnitDict)
+
+        for i in range(28):
+            self.Score[i] = self.Score[i]*self.Score_forget
+            self.Score[i] += self.Damage[i] + self.Breach[i]*self.Breach_Coef
+
+
+
         game_state = gamelib.GameState(self.config, turn_state)
-        gamelib.debug_write('Performing turn {} of your custom algo strategy'.format(game_state.turn_number))
         game_state.suppress_warnings(True)  #Comment or remove this line to enable warnings.
+
         self.breached_cur_turn = []
         self.damaged_cur_turn = []
         self.starter_strategy(game_state)
+
+        Strategy = AttackStrategy()
+        Strategy.spawn_attackers(game_state, self.Scrambler_at, self.Score, risk_level)
+
 
         self.defense_map, self.defense_score = update_defense_map(
             self.damaged_cur_turn, self.breached_cur_turn)
@@ -226,6 +298,7 @@ class AlgoStrategy(gamelib.AlgoCore):
                 filtered.append(location)
         return filtered
 
+
     def on_action_frame(self, turn_string):
         """
         This is the action frame of the game. This function could be called
@@ -234,6 +307,7 @@ class AlgoStrategy(gamelib.AlgoCore):
         Full doc on format of a game frame at: https://docs.c1games.com/json-docs.html
         """
         # Let's record at what position we get scored on
+
         state = json.loads(turn_string)
         events = state["events"]
         breaches = events["breach"]
