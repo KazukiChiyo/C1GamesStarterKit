@@ -99,7 +99,7 @@ class AttackStrategy:
                 enemy_destr_counts.append(enemy_destr_count)
                 fire += enemy_destr_count * gamelib.GameUnit(DESTRUCTOR, game_state.config).damage
                 scram += scrambler_heatmap[x, y]
-                risk = fire * fire_param + scram * scrambler_param
+                risk = 1 + fire * fire_param + scram * scrambler_param
                 reward = score_board[x]
                 preference = reward / risk
             preference.append(preference)
